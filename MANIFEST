@@ -1,6 +1,5 @@
 Lex.fr.pod
 MANIFEST
-Makefile
 Makefile.PL
 Parse/Lex.pm
 Parse/Preprocess.pm

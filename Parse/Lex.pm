@@ -1,4 +1,4 @@
-# © Philippe Verdret, 1995-1997
+# Copyright (c) Philippe Verdret, 1995-1997
 
 require 5.003;
 use strict qw(vars);
@@ -6,7 +6,8 @@ use strict qw(refs);
 use strict qw(subs);
 
 package Parse::Lex;
-$Lex::VERSION = '1.12';
+use vars qw($VERSION);
+$VERSION = '1.13';
 use Parse::Token;
 use Carp;
 use Parse::Preprocess;
@@ -22,71 +23,74 @@ my $hold = 0;			# if true enable data saving
 my $trace = 0;			# control trace mode
 
 my $lexer = bless [];		# Prototype object
-my $idx = 0;
-$lexer->[my $fh_idx = $idx++] = $FH;
-$lexer->[my $string_idx = $idx++] = 0; # data come from string
-my $sub_idx = $idx++;
-$lexer->[$sub_idx] = sub {
-  $_[0]->[$fh_idx] = $FH;	# read on default Filehandle
+my($FH, $STRING, $SUB, $BUFFER, $PENDING_TOKEN, 
+   $EOI, $SKIP, $HOLD, $HOLD_CONTENT, $COMPLEX, 
+   $CODE_HEAD, $CODE_BODY, $CODE_FOOT, $TRACE, $INIT, 
+   $TOKEN_LIST
+  ) = (0..15);
+$lexer->[$FH] = $FH;
+$lexer->[$STRING] = 0; # data come from string
+$lexer->[$SUB] = sub {
+  $_[0]->[$FH] = $FH;	# read on default Filehandle
   $_[0]->genlex;		# autogeneration
-  &{$_[0]->[$sub_idx]};		# execution
+  &{$_[0]->[$SUB]};		# execution
 };
-$lexer->[my $buffer_idx = $idx++] = ''; # string to tokenize
-$lexer->[my $pendingToken_idx = $idx++] = $defaultToken;
-$lexer->[my $eoi_idx = $idx++] = $eoi;
-$lexer->[my $skip_idx = $idx++] = $skip;
-$lexer->[my $hold_idx = $idx++] = $hold; # save or not what is consumed
-$lexer->[my $holdContent_idx = $idx++] = ''; # saved string
-$lexer->[my $complex_idx = $idx++] = 0; # if three part regexp
-$lexer->[my $codeHEAD_idx = $idx++] = ''; # lexer code
-$lexer->[my $codeBODY_idx = $idx++] = ''; # lexer code
-$lexer->[my $codeFOOT_idx = $idx++] = ''; # lexer code
-$lexer->[my $trace_idx = $idx++] = $Lex::trace;
-$lexer->[my $init_idx = $idx++] = 1; # for the first generation
-$lexer->[my $tokenList_idx = $idx++] = undef;
-$Lex::pendToken_idx = $pendingToken_idx;
+$lexer->[$BUFFER] = ''; # string to tokenize
+$lexer->[$PENDING_TOKEN] = $defaultToken;
+$lexer->[$EOI] = $eoi;
+$lexer->[$SKIP] = $skip;
+$lexer->[$HOLD] = $hold; # save or not what is consumed
+$lexer->[$HOLD_CONTENT] = ''; # saved string
+$lexer->[$COMPLEX] = 0; # if three part regexp
+$lexer->[$CODE_HEAD] = ''; # lexer code
+$lexer->[$CODE_BODY] = ''; # lexer code
+$lexer->[$CODE_FOOT] = ''; # lexer code
+$lexer->[$TRACE] = $trace;
+$lexer->[$INIT] = 1; # for the first generation
+$lexer->[$TOKEN_LIST] = undef;
+$Lex::PEND_TOKEN = $PENDING_TOKEN;
 
-sub next { &{$_[0]->[$sub_idx]} }
+sub next { &{$_[0]->[$SUB]} }
 sub eoi { 
   my $self = shift;
-  $self->[$eoi_idx];
+  $self->[$EOI];
 } 
 sub token {			# always return a Token object
   my $self = shift;
-  $self->[$pendingToken_idx] or
+  $self->[$PENDING_TOKEN] or
     $defaultToken 
 } 
 sub tokenis {			# force the token
   my $self = shift;
-  $self->[$pendingToken_idx] = $_[0];
+  $self->[$PENDING_TOKEN] = $_[0];
 }
-sub set {			# set the token content
+sub setbuffer {			# set the buffer content
   my $self = shift;
-  $self->[$buffer_idx] = $_[0];
+  $self->[$BUFFER] = $_[0];
 } 
-sub get {			# get the token content
+sub getbuffer {			# get the buffer content
   my $self = shift;
-  $self->[$buffer_idx]; 
+  $self->[$BUFFER]; 
 } 
 sub buffer { 
   my $self = shift;
   if (defined $_[0]) {
-    $self->[$buffer_idx] = $_[0] 
+    $self->[$BUFFER] = $_[0] 
   } else {
-    $self->[$buffer_idx];
+    $self->[$BUFFER];
   }
 } 
 sub flush {
   my $self = shift;
-  my $tmp = $self->[$holdContent_idx];
-  $self->[$holdContent_idx] = '';
+  my $tmp = $self->[$HOLD_CONTENT];
+  $self->[$HOLD_CONTENT] = '';
   $tmp;
 }
 sub less { 
   my $self = shift;
   if (defined $_[0]) {
-    $self->[$buffer_idx] = $_[0] . 
-      $self->[$buffer_idx];
+    $self->[$BUFFER] = $_[0] . 
+      $self->[$BUFFER];
   }
 }
 
@@ -100,47 +104,47 @@ sub every {
   if (not $ref or $ref ne 'CODE') { 
     croak "every must have an anonymous routine as argument";
   }
-  my $token = &{$self->[$sub_idx]}($self);
-  while (not $self->[$eoi_idx]) {
+  my $token = &{$self->[$SUB]}($self);
+  while (not $self->[$EOI]) {
     &{$_[0]}($token);
-    $token = &{$self->[$sub_idx]}($self);
+    $token = &{$self->[$SUB]}($self);
   }
   undef;
 }
 sub reset { 
   my $self = shift;
-  $self->[$eoi_idx] = 0; 
-  $self->[$buffer_idx] = ''; 
-  if ($self->[$pendingToken_idx]) { 
-    $self->[$pendingToken_idx]->setstring();
-    $self->[$pendingToken_idx] = 0;
+  $self->[$EOI] = 0; 
+  $self->[$BUFFER] = ''; 
+  if ($self->[$PENDING_TOKEN]) { 
+    $self->[$PENDING_TOKEN]->setstring();
+    $self->[$PENDING_TOKEN] = 0;
   }
 }
 sub tokenlist {
   my $self = shift;
-  @{$self}[$tokenList_idx..$#{$self}]; 
+  @{$self}[$TOKEN_LIST..$#{$self}]; 
 }
 # where data come from
 sub from {
   my $self = shift;
   if (ref($_[0]) eq 'GLOB'	# Read data from a filehandle
       and defined fileno($_[0])) {	
-    if ($self->[$fh_idx] ne $_[0]) { # FH not defined or has changed
-      $self->[$fh_idx] = $_[0];
-      $self->genbody($self->tokenlist) if $self->[$complex_idx];
+    if ($self->[$FH] ne $_[0]) { # FH not defined or has changed
+      $self->[$FH] = $_[0];
+      $self->genbody($self->tokenlist) if $self->[$COMPLEX];
       $self->genlex();
     }
     $self->reset;
   } elsif (defined $_[0]) {		# Data from a variable or a list
-    unless ($self->[$string_idx]) {
-      $self->genbody($self->tokenlist) if $self->[$complex_idx];
+    unless ($self->[$STRING]) {
+      $self->genbody($self->tokenlist) if $self->[$COMPLEX];
       $self->genlex();
-      $self->[$string_idx] = 1;
+      $self->[$STRING] = 1;
     }
     $self->reset;
-    $self->[$buffer_idx] = join($", @_); # Data from a list
-  } elsif ($self->[$fh_idx]) {
-    $self->[$fh_idx];
+    $self->[$BUFFER] = join($", @_); # Data from a list
+  } elsif ($self->[$FH]) {
+    $self->[$FH];
   } else {
     undef;
   }
@@ -154,14 +158,14 @@ sub from {
 
 my $header_ST = q!
   {		
-   my $buffer = $_[0]->[<<$_buffer_idx>>];
+   my $buffer = $_[0]->[<<$_BUFFER>>];
    if ($buffer ne '') {
      $buffer =~ s/^(<<$_skip_>>)//;
      <<$Lex::holdSkip>>
    }
    if ($buffer eq '') {
-     $_[0]->[<<$_eoi_idx>>] = 1;
-     $_[0]->[<<$_pendingToken_idx>>] = $Token::EOI;
+     $_[0]->[<<$_EOI>>] = 1;
+     $_[0]->[<<$Lex::_PENDING_TOKEN>>] = $Token::EOI;
      return $Token::EOI;
    }
    my $content = '';
@@ -171,28 +175,28 @@ my $header_ST = q!
 
 my $header_FH = q!
   {
-   my $buffer = $_[0]->[<<$_buffer_idx>>];
+   my $buffer = $_[0]->[<<$_BUFFER>>];
    if ($buffer ne '') {
      $buffer =~ s/^(<<$_skip_>>)//;
      <<$Lex::holdSkip>>
    }
    if ($buffer eq '') {
-     if ($_[0]->[<<$_eoi_idx>>]) # if EOI
+     if ($_[0]->[<<$_EOI>>]) # if EOI
        { 
-         $_[0]->[<<$_pendingToken_idx>>] = $Token::EOI;
+         $_[0]->[<<$Lex::_PENDING_TOKEN>>] = $Token::EOI;
          return $Token::EOI;
        } 
      else 
        {
-        my $fh = $_[0]->[<<$_fh_idx>>];
+        my $fh = $_[0]->[<<$_FH>>];
         do {
            $buffer = <$fh>; 
            if (defined($buffer)) {
              $buffer =~ s/^(<<$_skip_>>)//;
              <<$Lex::holdSkip>>
            } else {
-             $_[0]->[<<$_eoi_idx>>] = 1;
-             $_[0]->[<<$_pendingToken_idx>>] = $Token::EOI;
+             $_[0]->[<<$_EOI>>] = 1;
+             $_[0]->[<<$Lex::_PENDING_TOKEN>>] = $Token::EOI;
              return $Token::EOI;
            }
          } while ($buffer eq '');
@@ -206,7 +210,7 @@ my $rowHeader_SIMPLE = q!
    $buffer =~ s/^(<<$Lex::begin>>)// and do {!;
 #not used
 my $rowHeader_SIMPLE_TRACE = q!
-   if ($_[0]->[<<$Lex::_trace_idx>>]) {
+   if ($_[0]->[<<$Lex::_TRACE>>]) {
      print STDERR "Token read(", $<<$Lex::id>>->name, ", \"<<$Lex::begin>>\E\") $1\n"; 
    }!;
 my $rowHeader_COMPLEX_ST = q!
@@ -216,12 +220,12 @@ my $rowHeader_COMPLEX_FH = q!
     my $string = $buffer;
     $buffer = "$1$buffer";
     do {
-      my $fh = $_[0]->[<<$_fh_idx>>];
+      my $fh = $_[0]->[<<$_FH>>];
       while (not $string =~ /<<$Lex::end>>/) {
         $string = <$fh>;
         if (not defined($string)) {
-           $_[0]->[<<$_eoi_idx>>] = 1;
-           $_[0]->[<<$_pendingToken_idx>>] = $Token::EOI;
+           $_[0]->[<<$_EOI>>] = 1;
+           $_[0]->[<<$Lex::_PENDING_TOKEN>>] = $Token::EOI;
            return $Token::EOI;
         }
         $buffer .= $string;
@@ -230,26 +234,26 @@ my $rowHeader_COMPLEX_FH = q!
     } until ($buffer =~ s/^(<<$Lex::begin>><<$Lex::between>><<$Lex::end>>)//);
 !;
 my $rowHeader_COMPLEX_TRACE = q!
-  if ($_[0]->[<<$Lex::_trace_idx>>]) { # Trace
+  if ($_[0]->[<<$Lex::_TRACE>>]) { # Trace
     print STDERR "Token read(", 
     $<<$Lex::id>>->name, ", <<$Lex::begin>><<$Lex::between>><<$Lex::end>>\E) $1\n"; 
   }!;
 my $rowFooterSub = q!
-    $_[0]->[<<$_buffer_idx>>] = $buffer;
+    $_[0]->[<<$_BUFFER>>] = $buffer;
     $content = $1;
     $<<$Lex::id>>->setstring($content);
-    $_[0]->[<<$_pendingToken_idx>>] = $token = $<<$Lex::id>>;
+    $_[0]->[<<$Lex::_PENDING_TOKEN>>] = $token = $<<$Lex::id>>;
     $content = &{$<<$Lex::id>>->mean}($token, $content);
     $<<$Lex::id>>->setstring($content);
-    $token = $_[0]->[<<$_pendingToken_idx>>]; # if tokenis in sub
+    $token = $_[0]->[<<$Lex::_PENDING_TOKEN>>]; # if tokenis in sub
     last CASE;
   };
 !;
 my $rowFooter = q!
-    $_[0]->[<<$_buffer_idx>>] = $buffer;
+    $_[0]->[<<$_BUFFER>>] = $buffer;
     $content = $1;
     $<<$Lex::id>>->setstring($content);
-    $_[0]->[<<$_pendingToken_idx>>] = $token = $<<$Lex::id>>;
+    $_[0]->[<<$Lex::_PENDING_TOKEN>>] = $token = $<<$Lex::id>>;
     last CASE;
    };
 !;
@@ -258,8 +262,8 @@ my $footer = q!
   <<$Lex::holdToken>>
   return $token;
 }!;
-$Lex::holdToken = qq!\$_[0]->[$holdContent_idx] .= \$content; # hold consumed strings!;
-$Lex::holdSkip = qq!\$_[0]->[$holdContent_idx] .= \$1; # hold consumed strings!;
+$Lex::holdToken = qq!\$_[0]->[$HOLD_CONTENT] .= \$content; # hold consumed strings!;
+$Lex::holdSkip = qq!\$_[0]->[$HOLD_CONTENT] .= \$1; # hold consumed strings!;
 
 # Purpose: Toggle the trace mode
 # todo: regenerate the analyser's body
@@ -267,11 +271,11 @@ $Lex::holdSkip = qq!\$_[0]->[$holdContent_idx] .= \$1; # hold consumed strings!;
 sub trace { 
   my $self = shift;
   if (ref($self)) {			# for an object
-    if ($self->[$trace_idx]) {
-      $self->[$trace_idx] = 0;
+    if ($self->[$TRACE]) {
+      $self->[$TRACE] = 0;
       print STDERR "trace OFF\n";
     } else {
-      $self->[$trace_idx] = 1;
+      $self->[$TRACE] = 1;
       print STDERR "trace ON\n";
     }
   } else {			# for the class attribute
@@ -291,7 +295,7 @@ sub trace {
 sub hold {			
   my $self = shift;
   if (ref $self) {
-      $self->[$hold_idx] = not $self->[$hold_idx];
+      $self->[$HOLD] = not $self->[$HOLD];
       $self->genbody($self->tokenlist);
       $self->genlex();
   } else {			# for the class attribute
@@ -312,12 +316,12 @@ sub skip {
   my $self = shift;
   if (ref $self) {
     if (defined($_[0])) {
-      if ($_[0] ne $self->[$skip_idx]) {
-	$self->[$skip_idx] = $_[0];
+      if ($_[0] ne $self->[$SKIP]) {
+	$self->[$SKIP] = $_[0];
 	$self->genlex();
       }
     } else {
-      $self->[$skip_idx];
+      $self->[$SKIP];
     }
   } else {			# for the class attribute
 				# or perhaps change the default object
@@ -331,8 +335,8 @@ sub skip {
 # Returns: a lex object
 
 sub new {
-  my $self = shift;
-  my $class = (ref $self or $self);
+  my $receiver = shift;
+  my $class = (ref $receiver or $receiver);
   if (not defined($_[0])) {
     croak "arguments of the new method must be a list of token specifications";
   }
@@ -341,13 +345,13 @@ sub new {
   $lexer->reset;
   my $self = bless[@{$lexer}], $class; # the default 
 
-  $self->[$init_idx] = 1;
-  $self->[$hold_idx] = $hold;	# perhaps put these info directly in the default object
-  $self->[$trace_idx] = $trace; 
-  $self->[$skip_idx] = $skip; 
+  $self->[$INIT] = 1;
+  $self->[$HOLD] = $hold;	# perhaps put this in the default object
+  $self->[$TRACE] = $trace; 
+  $self->[$SKIP] = $skip; 
 
   my @token = $self->newset(@_);
-  splice(@{$self}, $tokenList_idx, 1, @token);	
+  splice(@{$self}, $TOKEN_LIST, 1, @token);	
 
   $self->genbody(@token);
 }
@@ -359,19 +363,19 @@ sub new {
 sub genbody {
   my $self = shift;
   my $sub;
-  $self->[$complex_idx] = 0;
+  $self->[$COMPLEX] = 0;
   local $Lex::id;	
-  local $Lex::_trace_idx = $trace_idx;
-  if ($self->[$init_idx]) {	# object creation
-    $self->[$trace_idx] = $trace; # class current value
-    $self->[$init_idx] = 0;
+  local $Lex::_TRACE = $TRACE;
+  if ($self->[$INIT]) {	# object creation
+    $self->[$TRACE] = $trace; # class current value
+    $self->[$INIT] = 0;
   }
-  local $Lex::_pendingToken_idx = $pendingToken_idx;
-  local $Lex::_buffer_idx = $buffer_idx;
-  local $Lex::_eoi_idx = $eoi_idx;
-  local $Lex::_fh_ = $self->[$fh_idx]; 
-  local $Lex::_fh_idx = $fh_idx;
-  local $Lex::holdToken = '' unless $self->[$hold_idx];
+  local $Lex::_PENDING_TOKEN = $PENDING_TOKEN;
+  local $Lex::_BUFFER = $BUFFER;
+  local $Lex::_EOI = $EOI;
+  local $Lex::_fh_ = $self->[$FH]; 
+  local $Lex::_FH = $FH;
+  local $Lex::holdToken = '' unless $self->[$HOLD];
   local($Lex::regexp, $Lex::begin, $Lex::between, $Lex::end);
   no strict 'refs';		# => ${$Lex::id}
   my $token;
@@ -382,7 +386,7 @@ sub genbody {
     $Lex::id = $token->name;
 
     if (ref($Lex::regexp) eq 'ARRAY') {
-      $self->[$complex_idx] = 1;
+      $self->[$COMPLEX] = 1;
       $Lex::begin = ppregexp(${$Lex::regexp}[0]);
       $Lex::between = ${$Lex::regexp}[1] ? 
 	ppregexp(${$Lex::regexp}[1]) : '(?:.*?)';
@@ -395,13 +399,13 @@ sub genbody {
       }
       $Lex::between = '';
 
-      if ($self->[$trace_idx]) {
+      if ($self->[$TRACE]) {
 	$body .= ppcode($rowHeader_COMPLEX_TRACE, 'Lex');
       } 
     } else {
       $Lex::begin = ppregexp($Lex::regexp);
       $body .= ppcode($rowHeader_SIMPLE, 'Lex');
-      if ($self->[$trace_idx]) {
+      if ($self->[$TRACE]) {
 	$body .= ppcode($rowHeader_SIMPLE_TRACE, 'Lex');
       } 
     }
@@ -415,7 +419,7 @@ sub genbody {
     }
   }
 
-  $self->[$codeBODY_idx] = $body;
+  $self->[$CODE_BODY] = $body;
   $self;
 }
 
@@ -426,25 +430,25 @@ sub genbody {
 sub genlex {
   my $self = shift;
 				# save all what is consumed or not 
-  local $Lex::holdToken = '' unless $self->[$hold_idx];
-  local $Lex::holdSkip = ''  unless $self->[$hold_idx];
-  local $Lex::_skip_ = $self->[$skip_idx];
-  local $Lex::_fh_ = $self->[$fh_idx]; 
-  local $Lex::_fh_idx = $fh_idx;
-  local $Lex::_buffer_idx = $buffer_idx;
-  local $Lex::_eoi_idx = $eoi_idx;
-  local $Lex::_pendingToken_idx = $pendingToken_idx;
+  local $Lex::holdToken = '' unless $self->[$HOLD];
+  local $Lex::holdSkip = ''  unless $self->[$HOLD];
+  local $Lex::_skip_ = $self->[$SKIP];
+  local $Lex::_fh_ = $self->[$FH]; 
+  local $Lex::_FH = $FH;
+  local $Lex::_BUFFER = $BUFFER;
+  local $Lex::_EOI = $EOI;
+  local $Lex::_PENDING_TOKEN = $PENDING_TOKEN;
   my $head;			# sub genhead
   if ($Lex::_fh_) {
-    $head = $self->[$codeHEAD_idx] = ppcode($header_FH, 'Lex');
+    $head = $self->[$CODE_HEAD] = ppcode($header_FH, 'Lex');
   } else {
-    $head = $self->[$codeHEAD_idx] = ppcode($header_ST, 'Lex');
+    $head = $self->[$CODE_HEAD] = ppcode($header_ST, 'Lex');
   }
 				# sub genfoot
-  my $foot = $self->[$codeFOOT_idx] = ppcode($footer, 'Lex');
+  my $foot = $self->[$CODE_FOOT] = ppcode($footer, 'Lex');
 
-  my $analyser = $head . $self->[$codeBODY_idx] . $foot;
-  eval qq!\$self->[$sub_idx] = sub $analyser!; # Create the lexer
+  my $analyser = $head . $self->[$CODE_BODY] . $foot;
+  eval qq!\$self->[$SUB] = sub $analyser!; # Create the lexer
 
   if ($@) {	# can be usefull ;-)
     my $line = 0;
@@ -462,7 +466,7 @@ sub genlex {
 
 sub getcode {
   my $self = shift;
-  $self->[$codeHEAD_idx] . $self->[$codeBODY_idx]. $self->[$codeFOOT_idx];
+  $self->[$CODE_HEAD] . $self->[$CODE_BODY]. $self->[$CODE_FOOT];
 }
 
 # Purpose: returns the lexical analyzer like an anonymous sub
@@ -472,7 +476,7 @@ sub getcode {
 
 sub getsub {
   my $self = shift;
-  my $sub = "$self->[$codeHEAD_idx] $self->[$codeBODY_idx] $self->[$codeFOOT_idx]";
+  my $sub = "$self->[$CODE_HEAD] $self->[$CODE_BODY] $self->[$CODE_FOOT]";
   eval "sub $sub";
 }
 
@@ -516,10 +520,10 @@ sub newset {
   @token;
 }
 sub readline {
-  my $fh = $_[0]->[$fh_idx];
+  my $fh = $_[0]->[$FH];
   $_ = <$fh>;
   if (not defined($_)) {
-    $_[0]->[$eoi_idx] = 1;
+    $_[0]->[$EOI] = 1;
   } else {
     $_;
   }

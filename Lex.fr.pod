@@ -1,6 +1,6 @@
-=head1 NAME
+=head1 NOM
 
-C<Parse::Lex> - Générateur d'analyseurs lexicaux (Alpha 1.12).
+C<Parse::Lex> - Générateur d'analyseurs lexicaux (Alpha 1.13).
 
 =head1 SYNOPSIS
 
@@ -52,9 +52,9 @@ C<Parse::Lex> - Générateur d'analyseurs lexicaux (Alpha 1.12).
 
 =head1 DESCRIPTION
 
-Le package C<Parse::Lex> permet de créer des analyseurs lexicaux.  Un
+La classe C<Parse::Lex> permet de créer des analyseurs lexicaux.  Un
 analyseur lexical est spécifié au moyen d'un liste de lexèmes passée
-en argument à la méthode C<new> du package C<Parse::Lex>.
+en argument à la méthode C<new> de la classe C<Parse::Lex>.
 
 Les lexèmes sont des objets de la classe C<Parse::Token>, livré
 avec C<Parse::Lex>. La définition d'un lexème comporte ordinairement
@@ -64,13 +64,12 @@ argument, elle est exécutée lorsque le lexème est reconnu.
 
 L'ordre dans lequel l'analyseur lexical examine les expressions
 régulières est déterminé par l'ordre dans lequel ces expressions sont
-passées en argument à la méthode new(). Le lexème retourné par
+passées en argument à la méthode C<new>. Le lexème retourné par
 l'analyseur lexical correspond à la première expression qui s'apparie
-avec le début du flot de caractère à analyser (la stratégie est
-différence de celle adoptée par l'analyseur lexical "Lex" bien connu
-qui retourne la plus longue chaîne de toutes celles qu'il est possible
-de reconnaître avec les différences expressions régulières). Ce lexème
-est un objet C<Parse::Token>.
+avec le début du flot de caractères à analyser (la stratégie est
+différence de celle adoptée par l'analyseur lexical "Lex" qui retourne
+la plus longue chaîne de toutes celles qu'il est possible de
+reconnaître). Le lexème est un objet de la classe C<Parse::Token>.
 
 L'analyseur peut être utilisé pour analyser une chaîne de caractères
 isolée ou un flot de données provenant d'une entrée quelconque.  En
@@ -79,23 +78,23 @@ fin de flot l'analyseur retourne un objet Token dont le nom est C<EOI>
 
 =head2 Méthodes
 
-=item buffer(EXPR)
+=item buffer EXPR
 
-=item buffer()
+=item buffer
 
 Retourne le contenu du buffer interne à l'analyseur lexical. Avec
 une expression en argument, place le résultat de l'expression dans le
 buffer.
 
-=item eoi()
+=item eoi
 
-Retourne vrai si la fin de données est rencontrée.
+Retourne vrai lorsqu'il n'y a plus de données à analyser.
 
-=item every(ANON)
+=item every ANON
 
 Analyse le flot à traiter et exécute C<ANON> après la reconnaissance de
 chaque lexème.  Évite de devoir écrire une boucle de lecture. Pour
-"lexèmiser" la chaîne "1+2" on peut par exemple écrire : 
+segmenter la chaîne "1+2" on peut par exemple écrire : 
 
 	use Parse::Lex;
 
@@ -113,82 +112,114 @@ chaque lexème.  Évite de devoir écrire une boucle de lecture. Pour
 
 Le premier argument de la fonction anonyme est l'objet Token reconnu.
 
-=item from(EXPR)
+=item from EXPR
 
-from() permet d'indiquer la source des données à analyser.  L'argument
+C<from> permet d'indiquer la source des données à analyser.  L'argument
 de cette méthode est une référence à un filehandle ou une liste de
 chaînes de caractères. Exemples :
 
 	$lexer->from(\*DATA);
 	$lexer->from('les données à analyser');
 
-=item flush()
+=item flush
 
-À utiliser si l'attribut C<hold> est à Vrai.  Dans ce cas C<flush>
+Si la conservation des chaînes consommées est activée, C<flush>
 retourne et vide le buffer contenant les chaînes de caractères
 reconnues jusqu'ici.
 
-Rq. Un affinement consisterait à mettre des marqueurs dans le buffer
-et à faire un flush jusqu'à un marqueur donné.
-
-=item get()
+=item getbuffer
 
 Retourne le contenu du buffer interne à l'analyseur lexical.
 
-
-=item hold(EXPR)
+=item hold EXPR
 
 =item hold
 
-Si la valeur de cet attribut est à vraie alors les chaînes consommées
-sont conservées dans un buffer interne à l'analyseur.  Retourne la
-valeur de l'attribut. Peut être utilisée comme méthode de classe..
+Active/desactive la conservation des chaînes consommées.  Retourne la
+valeur courante. Peut être utilisée comme méthode de classe.
 
-On peut obtenir le contenu du buffer au moyen de la méthode flush()
+On peut obtenir le contenu du buffer au moyen de la méthode C<flush>
 qui a également pour effet de vider le buffer. 
 
+=item less EXPR
 
-=item less(EXPR)
+La valeur de EXPR est placée au début du flot de données.
 
-EXPR est un expression dont la valeur est placée au début du flot de
-données.
+=item next
 
-=item new()
+Provoque la recherche du prochain lexème. Retourne l'objet Token
+reconnu.  Retourne l'objet Token::EOI en fin de données.
+
+=item new
 
 Crée et retourne un nouvel analyseur lexical. L'argument de la méthode
 est une liste de triplets comportant : le nom symbolique du lexème,
 l'expression régulière nécessaire à sa reconnaissance et
 éventuellement une fonction anonyme exécutée lors de la reconnaissance
-du lexème.  Pour chaque triplet, new() crée un objet de type
-C<Parse::Token>.
+du lexème.  Pour chaque triplet, un objet de type
+C<Parse::Token> est créé.
 
-L'analyseur lexical construit par new() cherche tour à tour à apparier
+L'analyseur lexical construit par C<new> cherche tour à tour à apparier
 chaque expression régulière avec le début du flot de données à
 analyser. L'ordre examen des expressions régulières est fixé par
-l'ordre dans lequel elles sont passées en paramètre à la méthode
-new().
+l'ordre dans lequel elles sont passées en argument à la méthode
+C<new>.
 
-=item next()
+=item newset
 
-Provoque la recherche du prochain lexème. Retourne l'objet Token
-reconnu.  Retourne l'objet Token::EOI sur la fin de données.
+Peut être utilisé pour créer un ensemble de lexèmes qui ne sont pas
+dans l'automate d'analyse. On pourra pas exemple écrire :
 
-=item readline()
+	%keywords = 
+	  qw (
+	      PROC  undef
+	      FUNC  undef
+	      RETURN undef
+	      IF    undef
+	      ELSE  undef
+	      WHILE undef
+	      PRINT undef
+	      READ  undef
+	     );
+	$lexer->newset(%keywords);
+
+et installer ces tokens dans une table des symboles de la manière
+suivante :
+
+	foreach $name (keys %keywords) {
+	  $symbol{"\L$name"} = [${$name}, ''];
+	}
+
+C<${$name}> est l'objet Token.
+
+Lors de la phase d'analyse lexicale on pourra utiliser les tokens de
+la manière suivante :
+
+	qw(IDENT [a-zA-Z][a-zA-Z0-9]*),  sub {		      
+	   $symbol{$_[1]} = [] unless defined $symbol{$_[1]};
+	   my $type = $symbol{$_[1]}[0];
+	   $lexer->tokenis((not defined $type) ? $VAR : $type);
+	   $_[1];
+	 }
+
+Ce qui permet de requalifier C<IDENT>.
+
+=item readline
 
 Effectue la lecture des données sur l'entrée spécifiée par la
-méthode from(). Retourne le résultat de la lecture.
+méthode C<from>. Retourne le résultat de la lecture.
 
-=item reset()
+=item reset
 
 Vide le buffer interne à l'analyseur lexical et efface tout token déjà
-reconnu. 
+reconnu.
 
-=item set(EXPR)
+=item setbuffer EXPR
 
 La valeur de C<EXPR> est placée dans le buffer interne à l'analyseur
-lexical. 
+lexical.
 
-=item skip(EXPR)
+=item skip EXPR
 
 =item skip
 
@@ -196,28 +227,28 @@ C<EXPR> est une expression régulière définissant le séparateur de
 lexème (par défaut C<[ \t]+>). Retourne ce séparateur si C<EXPR> est
 omis. Peut être utilisée comme méthode de classe.
 
-=item token()
+=item token
 
 Retourne l'objet correspondant au dernier lexème reconnu. En l'absence
 de token lu, retourne un token spécial dont le nom est C<default
 token>.
 
-=item tokenis(TOKEN OBJECT)
+=item tokenis TOKEN OBJECT
 
 Force le lexème à C<TOKEN OBJECT>. Utile pour requalifier un lexème à
 l'intérieur de la fonction anonyme associée à ce lexème.
 
-=item trace() 
+=item trace 
 
 Active/désactive une trace de l'analyse lexicale. Peut être utilisée
-comme une  méthode de classe.
+comme méthode de classe.
 
 =head1 EXEMPLES
 
-tokenizer.pl - "Lexèmisation" d'un flot de données au moyen
-du package C<Parse::Lex>.
+tokenizer.pl - Segmentation d'un flot de données au moyen
+de la classe C<Parse::Lex>.
 
-every.pl - Utilisation de la méthode every().
+every.pl - Utilisation de la méthode C<every>.
 
 =head1 EXTENSIONS
 

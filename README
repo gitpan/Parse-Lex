@@ -1,12 +1,17 @@
-                       Parse::Lex.pm - V 1.12
+                       Parse::Lex.pm - 1.13
+___________
+DESCRIPTION
 
 The Parse::Lex.pm module for perl5 is an object-oriented generator of
 lexical analysers.
 
 Parse::Lex.pm is currently under development but perfectly usable
 (IMHO). Documentation is in French. It's not a linguistic provocation!
-I am very busy, and I've no time to translate it in English (and I
-know that the result will not be perfect ;-).
+I am very busy, and I've no time to translate the documentation in
+English (and I know that the result will not be perfect ;-).
+
+A collection of examples demonstrating various Parse::Lex features and
+techniques are in the directory "examples".
 
 If you think Parse::Lex is an unvaluable tool or I'm wasting my
 time on an useless project, let me know!
@@ -17,3 +22,39 @@ modify it under the same terms as Perl itself.
 
 -- 
 philippe.verdret@sonovision-itep.fr
+
+___________________________
+HOW TO BUILD and INSTALL IT
+
+				
+% perl Makefile.PL
+% make 
+% make test	(if you have some problems with that try 
+			% make test -e 'TEST_LOG=1'
+		and take a look at the file named "log"
+		and/or send me the content)
+
+% make install
+
+____________________________________________________________
+RECENT CHANGES IN THIS RELEASE, ESPECIALLY INCOMPATIBILITIES
+
+Modifications of the 1.12 version
+
+o Parse::Token.pm - New methods
+
+  set() decorate a token object with an attribute-value list.
+
+  get() get the value of a token object attribute
+
+o Parse::Token.pm - Renamming
+
+  set() is now named setbuffer()
+
+  get() is now named getbuffer()
+
+  met() is now named isnext()
+
+o Warning suppressions
+
+
