@@ -1,0 +1,14 @@
+Lex.fr.pod
+MANIFEST
+Makefile
+Makefile.PL
+Parse/Lex.pm
+Parse/Preprocess.pm
+Parse/Token.pm
+README
+Token.fr.pod
+examples/every.pl
+examples/tokenizer.pl
+t/W.pm
+t/test1.t
+t/test2.t

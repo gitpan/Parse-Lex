@@ -1,0 +1,206 @@
+=head1 NAME
+
+C<Parse::Token> - Package compagnon de Lex.pm (Alpha 1.12).
+
+=head1 SYNOPSIS
+
+	require 5.000;
+
+	BEGIN {		
+	  push(@INC,  ("$ENV{'HOME'}/lib/perl5")); # or PERL5LIB
+	}
+
+	use Parse::Lex;
+	@token = qw(
+	    ADDOP    [-+]
+	    INTEGER  [1-9][0-9]*
+	   );
+
+	$Token::debug = 0;
+	$lexer = Parse::Lex->new(@token);
+	$lexer->from(\*DATA);
+
+	$content = $INTEGER->next;
+	if ($INTEGER->status) {
+	  print "$content\n";
+	}
+	$content = $ADDOP->next;
+	if ($ADDOP->status) {
+	  print "$content\n";
+	}
+	if ($INTEGER->met(\$content)) {
+	  print "$content\n";
+	}
+	__END__
+	1+2
+
+=head1 DESCRIPTION
+
+Le package C<Token> permet de définir les lexèmes utilisés par
+C<Parse::Lex>. La méthode Lex::new() du package C<Parse::Lex> crée
+indirectement un objet de type C<Token> par lexème à reconnaître.  Les
+méthodes C<next> ou C<met> du package C<Token> permettent d'interfacer
+aisément l'analyseur lexical avec un analyseur syntaxique.
+
+Le package C<Parse::Token> n'est pas destiné à être directement
+utilisé.  L'inclusion de ce package doit se faire par le biais d'un
+C<use Parse::Lex>.
+
+=head2 Méthodes
+
+=item getstring
+
+Retourne la chaîne de caractères reconnue au moyen du lexème.
+
+=item mean
+
+Retourne la fonction anonyme définie dans l'objet C<Token>.
+
+=item name
+
+Retourne le nom symbolique de l'objet C<Token>.
+
+=item next
+
+Active la recherche du lexème défini par l'expression régulière
+contenue dans l'objet. Si ce lexème est reconnu sur le flot de
+caractère à analyser alors next() retourne la chaîne trouvée et met le
+statut de l'objet à vrai.
+
+=item new(SYMBOL_NAME, REGEXP, ANONYNOUS SUB)
+
+Crée un objet de type C<Token>. Les arguments de la méthode new() sont
+dans l'ordre : un nom symbolique, une expression régulière et une
+fonction anonyme.
+
+REGEXP est soit une expression régulière simple, soit une référence à
+un tableau contenant : une ou plusieurs expressions régulières. Ce
+dernier cas permet de reconnaître un lexème dont le contenu peut être
+réparti sur plusieurs enregistrements, comme une chaîne de caractères
+délimitée par des guillemets, les commentaires du langage C, etc. Une
+telle spécification est surtout si les données à analyser proviennent
+d'un flot de caractères. 
+
+Les expressions régulières sont utilisées pour reconnaître :
+
+=item 1. le début du lexème, 
+
+=item 2. le "corps" du lexème, si cette seconde expression est absente
+C<Parse::Lex> utilise "(?:.*?)",
+
+=item 3. la fin du lexème, si cette dernière expression est absente
+on utilise la première.
+
+La fin du lexème ne peut être à cheval sur plusieurs enregistrements.
+
+La fonction anonyme est exécutée au moment ou le lexème est reconnu
+par l'analyseur lexical. Cette fonction possède deux arguments : $_[0]
+contient l'objet C<Token>, $_[1] la chaîne reconnue par l'expression
+régulière. Le scalaire retourné par la fonction anonyme définit la
+chaîne de caractères mémorisée dans l'objet C<Token>.
+
+Dans la fonction anonyme vous pouvez utiliser les variables
+positionnelles $1, $2,... sachant que $1 contient la chaîne reconnue
+par l'expression régulière de l'objet Token.
+
+=item newset
+
+Peut être utilisé pour créer un ensemble de lexèmes qui ne sont pas
+dans l'automate d'analyse. On pourra pas exemple écrire :
+
+	%keywords = 
+	  qw (
+	      PROC  undef
+	      FUNC  undef
+	      RETURN undef
+	      IF    undef
+	      ELSE  undef
+	      WHILE undef
+	      PRINT undef
+	      READ  undef
+	     );
+	$lexer->newset(%keywords);
+
+et installer ces tokens dans une table des symboles de la manière
+suivante :
+
+	foreach $name (keys %keywords) {
+	  $symbol{"\L$name"} = [${$name}, ''];
+	}
+
+<${$name}> est l'objet Token.
+
+Lors de la phase d'analyse lexicale on pourra utiliser les tokens de
+la manière suivante :
+
+	qw(IDENT [a-zA-Z][a-zA-Z0-9]*),  sub {		      
+	   $symbol{$_[1]} = [] unless defined $symbol{$_[1]};
+	   my $type = $symbol{$_[1]}[0];
+	   $lexer->tokenis((not defined $type) ? $VAR : $type);
+	   $_[1];
+	 }
+
+Ce qui premet de requalifier C<IDENT>.
+
+=item met(EXPR)
+
+=item met
+
+Retourne le status du token. La chaîne consommée est disponible dans
+EXPR s'il s'agit d'une référence à un scalaire.
+
+=item regexp
+
+Retourne l'expression régulière définie dans l'objet C<Token>.
+
+=item set(EXPR)
+
+La valeur de C<EXPR> définit la chaîne de caractères associée au 
+lexème.
+
+=item status(EXPR)
+
+=item status
+
+Indique si la dernière recherche du lexème a réussie ou échouée.
+C<status(EXPR)> permet de forcer le statut à la valeur retournée par
+l'évaluation d'EXPR.
+
+=item trace() 
+
+Active/désactive une trace de l'analyse lexicale. Peut être utilisée
+comme une méthode de classe.
+
+=head1 GESTION DES ERREURS
+
+Pour traiter les cas de non reconnaissance de lexème vous pouvez
+définir un objet C<Token> spécifique.  Si la recherche de ce token
+réussie il est alors possible d'appeler une fonction dévolue au
+traitement des erreurs.
+
+=head1 AUTEUR
+
+Philippe Verdret. 
+
+=head1 AVERTISSEMENT
+
+Je considère que la présente version de Token.pm/Lex.pm est
+expérimentale. Ce module peut notablement évoluer. J'aimerais recevoir
+vos remarques et vos suggestions.
+
+=head1 REFERENCES
+
+Friedl, J.E.F. Mastering Regular Expressions. O'Reilly & Associates
+1996.
+
+Groc, B., & Bouhier, M. - Programmation par la syntaxe. Dunod 1990.
+
+Mason, T & Brown, D. - Lex & Yacc. O'Reilly & Associates, Inc. 1990.
+
+=head1 COPYRIGHT
+
+Copyright (c) 1995-1997 Philippe Verdret. All rights reserved.
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
+
+=cut

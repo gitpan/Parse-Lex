@@ -1,0 +1,251 @@
+=head1 NAME
+
+C<Parse::Lex> - Générateur d'analyseurs lexicaux (Alpha 1.12).
+
+=head1 SYNOPSIS
+
+	#!/usr/local/bin/perl
+
+	require 5.000;
+
+	BEGIN {		
+	  push(@INC,  ("$ENV{'HOME'}/lib/perl5")); # or PERL5LIB
+	}
+	use Parse::Lex;
+	@token = (
+	  qw(
+	     ADDOP    [-+]
+	     LEFTP    [\(]
+	     RIGHTP   [\)]
+	     INTEGER  [1-9][0-9]*
+	     NEWLINE  \n
+	     
+	    ),
+	  qw(STRING), [qw(\" (?:[^\"\\\\]+|\\\\(?:.|\n))* \")],
+	  qw(ERROR  .*), sub {
+	    die qq!can\'t analyze: "$_[1]"!;
+	  }
+	 );
+
+	Parse::Lex->trace;
+	$lexer = Parse::Lex->new(@token);
+	$lexer->from(\*DATA);
+	print "Tokenization of DATA:\n";
+
+	TOKEN:while (1) {
+	  $token = $lexer->next;
+	  if (not $lexer->eoi) {
+	    print "Line $.\t";
+	    print "Type: ", $token->name, "\t";
+	    print "Content:->", $token->getstring, "<-\n";
+	  } else {
+	    last TOKEN;
+	  }
+	}
+
+	__END__
+	1+2-5
+	"multiline
+	string with an embedded \" in it"
+	embedded \" string"
+	an invalid string with an embedded \" string"
+
+=head1 DESCRIPTION
+
+Le package C<Parse::Lex> permet de créer des analyseurs lexicaux.  Un
+analyseur lexical est spécifié au moyen d'un liste de lexèmes passée
+en argument à la méthode C<new> du package C<Parse::Lex>.
+
+Les lexèmes sont des objets de la classe C<Parse::Token>, livré
+avec C<Parse::Lex>. La définition d'un lexème comporte ordinairement
+deux arguments : un non symbolique (comme C<INTEGER>), suivi d'une
+expression régulière. Si une fonction anonyme est donnée en troisième
+argument, elle est exécutée lorsque le lexème est reconnu.
+
+L'ordre dans lequel l'analyseur lexical examine les expressions
+régulières est déterminé par l'ordre dans lequel ces expressions sont
+passées en argument à la méthode new(). Le lexème retourné par
+l'analyseur lexical correspond à la première expression qui s'apparie
+avec le début du flot de caractère à analyser (la stratégie est
+différence de celle adoptée par l'analyseur lexical "Lex" bien connu
+qui retourne la plus longue chaîne de toutes celles qu'il est possible
+de reconnaître avec les différences expressions régulières). Ce lexème
+est un objet C<Parse::Token>.
+
+L'analyseur peut être utilisé pour analyser une chaîne de caractères
+isolée ou un flot de données provenant d'une entrée quelconque.  En
+fin de flot l'analyseur retourne un objet Token dont le nom est C<EOI>
+(End Of Input).
+
+=head2 Méthodes
+
+=item buffer(EXPR)
+
+=item buffer()
+
+Retourne le contenu du buffer interne à l'analyseur lexical. Avec
+une expression en argument, place le résultat de l'expression dans le
+buffer.
+
+=item eoi()
+
+Retourne vrai si la fin de données est rencontrée.
+
+=item every(ANON)
+
+Analyse le flot à traiter et exécute C<ANON> après la reconnaissance de
+chaque lexème.  Évite de devoir écrire une boucle de lecture. Pour
+"lexèmiser" la chaîne "1+2" on peut par exemple écrire : 
+
+	use Parse::Lex;
+
+	$lexer = Parse::Lex->new(
+	  qw(
+	     ADDOP [-+]
+	     INTEGER \d+
+	    ));
+
+	$lexer->from("1+2");
+	$lexer->every (sub { 
+	  print $_[0]->name, "\t";
+	  print $_[0]->get, "\n";
+	});
+
+Le premier argument de la fonction anonyme est l'objet Token reconnu.
+
+=item from(EXPR)
+
+from() permet d'indiquer la source des données à analyser.  L'argument
+de cette méthode est une référence à un filehandle ou une liste de
+chaînes de caractères. Exemples :
+
+	$lexer->from(\*DATA);
+	$lexer->from('les données à analyser');
+
+=item flush()
+
+À utiliser si l'attribut C<hold> est à Vrai.  Dans ce cas C<flush>
+retourne et vide le buffer contenant les chaînes de caractères
+reconnues jusqu'ici.
+
+Rq. Un affinement consisterait à mettre des marqueurs dans le buffer
+et à faire un flush jusqu'à un marqueur donné.
+
+=item get()
+
+Retourne le contenu du buffer interne à l'analyseur lexical.
+
+
+=item hold(EXPR)
+
+=item hold
+
+Si la valeur de cet attribut est à vraie alors les chaînes consommées
+sont conservées dans un buffer interne à l'analyseur.  Retourne la
+valeur de l'attribut. Peut être utilisée comme méthode de classe..
+
+On peut obtenir le contenu du buffer au moyen de la méthode flush()
+qui a également pour effet de vider le buffer. 
+
+
+=item less(EXPR)
+
+EXPR est un expression dont la valeur est placée au début du flot de
+données.
+
+=item new()
+
+Crée et retourne un nouvel analyseur lexical. L'argument de la méthode
+est une liste de triplets comportant : le nom symbolique du lexème,
+l'expression régulière nécessaire à sa reconnaissance et
+éventuellement une fonction anonyme exécutée lors de la reconnaissance
+du lexème.  Pour chaque triplet, new() crée un objet de type
+C<Parse::Token>.
+
+L'analyseur lexical construit par new() cherche tour à tour à apparier
+chaque expression régulière avec le début du flot de données à
+analyser. L'ordre examen des expressions régulières est fixé par
+l'ordre dans lequel elles sont passées en paramètre à la méthode
+new().
+
+=item next()
+
+Provoque la recherche du prochain lexème. Retourne l'objet Token
+reconnu.  Retourne l'objet Token::EOI sur la fin de données.
+
+=item readline()
+
+Effectue la lecture des données sur l'entrée spécifiée par la
+méthode from(). Retourne le résultat de la lecture.
+
+=item reset()
+
+Vide le buffer interne à l'analyseur lexical et efface tout token déjà
+reconnu. 
+
+=item set(EXPR)
+
+La valeur de C<EXPR> est placée dans le buffer interne à l'analyseur
+lexical. 
+
+=item skip(EXPR)
+
+=item skip
+
+C<EXPR> est une expression régulière définissant le séparateur de
+lexème (par défaut C<[ \t]+>). Retourne ce séparateur si C<EXPR> est
+omis. Peut être utilisée comme méthode de classe.
+
+=item token()
+
+Retourne l'objet correspondant au dernier lexème reconnu. En l'absence
+de token lu, retourne un token spécial dont le nom est C<default
+token>.
+
+=item tokenis(TOKEN OBJECT)
+
+Force le lexème à C<TOKEN OBJECT>. Utile pour requalifier un lexème à
+l'intérieur de la fonction anonyme associée à ce lexème.
+
+=item trace() 
+
+Active/désactive une trace de l'analyse lexicale. Peut être utilisée
+comme une  méthode de classe.
+
+=head1 EXEMPLES
+
+tokenizer.pl - "Lexèmisation" d'un flot de données au moyen
+du package C<Parse::Lex>.
+
+every.pl - Utilisation de la méthode every().
+
+=head1 EXTENSIONS
+
+Il serait sans doute intéressant de pouvoir retourner la liste des
+lexèmes correspondant à l'analyse de tout un flot de caractères.
+
+=head1 AUTEUR
+
+Philippe Verdret
+
+=head1 AVERTISSEMENT
+
+Je considère que la présente version de Token.pm/Lex.pm est
+expérimentale. Ce module peut notablement évoluer. J'aimerais recevoir
+vos remarques et vos suggestions.
+
+=head1 REFERENCES
+
+Friedl, J.E.F. Mastering Regular Expressions. O'Reilly & Associates
+1996.
+
+Groc, B., & Bouhier, M. - Programmation par la syntaxe. Dunod 1990.
+
+Mason, T & Brown, D. - Lex & Yacc. O'Reilly & Associates, Inc. 1990.
+
+=head1 COPYRIGHT
+
+Copyright (c) 1995-1997 Philippe Verdret. All rights reserved.
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
+
